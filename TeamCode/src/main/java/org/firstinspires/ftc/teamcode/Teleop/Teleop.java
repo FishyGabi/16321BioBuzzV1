@@ -42,11 +42,11 @@ public class Teleop extends LinearOpMode {
     static ElapsedTime timer = new ElapsedTime();
     static double lastError = 0;
 
-    private final double BLOCKER_CLOSE = .5;
-    private final double BLOCKER_OPEN = .7;
+    private final double BLOCKER_CLOSE = .3;
+    private final double BLOCKER_OPEN = .2;
     private double blockerPos = BLOCKER_CLOSE;
     private final double EXTENDER_UP = .5;
-    private final double EXTENDER_DOWN = .3;
+    private final double EXTENDER_DOWN = .65;
     private double extenderPos = EXTENDER_UP;
 
     private double intakePower = 0;
@@ -84,7 +84,14 @@ public class Teleop extends LinearOpMode {
 
         //motors
         FL.setDirection(DcMotorSimple.Direction.REVERSE);
-        BL.setDirection(DcMotorSimple.Direction.REVERSE);
+        BL.setDirection(DcMotorSimple.Direction.FORWARD);
+        FR.setDirection(DcMotorSimple.Direction.FORWARD);
+        BR.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        BL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        FL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        FR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         BIntake.setDirection(DcMotorSimple.Direction.REVERSE);
 
@@ -115,14 +122,15 @@ public class Teleop extends LinearOpMode {
             double velocity = LShooter.getVelocity();
             double power = PIDControl(reference, velocity);
 
+            telemetry.addData("Speed", reference);
 
             //INPUT
-            if (gamepad2.right_bumper){
-                reference += 100;
+            if (gamepad2.dpad_right){
+                reference += 1;
             }
 
-            if (gamepad2.left_bumper){
-                reference -= 100;
+            if (gamepad2.dpad_left){
+                reference -= 1;
             }
 
             if (gamepad2.dpad_down){
@@ -130,16 +138,20 @@ public class Teleop extends LinearOpMode {
             }
 
             if (gamepad2.dpad_up){
-                reference = 2000;
+                reference = 1500;
             }
 
             if (gamepad2.right_bumper){
                 extenderPos = EXTENDER_DOWN;
+                blockerPos = BLOCKER_CLOSE;
+
                 intakePower = 1;
             }
 
             if (gamepad2.left_bumper){
                 extenderPos = EXTENDER_UP;
+                blockerPos = BLOCKER_CLOSE;
+
                 intakePower = 0;
             }
 
@@ -166,8 +178,8 @@ public class Teleop extends LinearOpMode {
             RShooter.setPower(power);
 
             //intake
-            FIntake.setPower(intakePower);
-            BIntake.setPower(intakePower);
+            FIntake.setPower(-intakePower);
+            BIntake.setPower(-intakePower);
 
             //servos
             RBlocker.setPosition(blockerPos);
