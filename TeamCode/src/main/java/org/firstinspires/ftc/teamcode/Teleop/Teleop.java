@@ -29,9 +29,14 @@ public class Teleop extends LinearOpMode {
     private Servo RBlocker;
     private Servo LExtender;
     private Servo RExtender;
+    private Servo LRamp;
+    private Servo RRamp;
 
     //variables
-    private final double SPEED = 1;
+    private double speed = 1;
+
+    private final double FAST_SPEED = 1;
+    private final double SLOW_SPEED = .5;
 
     static double integralSum = 0;
     public static double Kd = 0;
@@ -48,10 +53,15 @@ public class Teleop extends LinearOpMode {
     private final double EXTENDER_UP = .5;
     private final double EXTENDER_DOWN = .65;
     private double extenderPos = EXTENDER_UP;
+    private final double RAMP_DOWN = .3;
+    private final double RAMP_UP = .3;
+    private double rampPos = RAMP_UP;
 
     private double intakePower = 0;
 
     private final double TRIGGER_DEADZONE = .3;
+
+    private boolean intakeRunning = false;
 
 
 
@@ -80,6 +90,9 @@ public class Teleop extends LinearOpMode {
         LExtender = hardwareMap.get(Servo.class, "LExtender");
         RExtender = hardwareMap.get(Servo.class, "RExtender");
 
+        RRamp = hardwareMap.get(Servo.class, "RRamp");
+        LRamp = hardwareMap.get(Servo.class, "LRamp");
+
         //ACTUATOR DIRECTIONS
 
         //motors
@@ -101,6 +114,8 @@ public class Teleop extends LinearOpMode {
         LBlocker.setDirection(Servo.Direction.REVERSE);
 
         LExtender.setDirection(Servo.Direction.REVERSE);
+
+        LRamp.setDirection(Servo.Direction.REVERSE);
 
         waitForStart();
 
@@ -146,6 +161,8 @@ public class Teleop extends LinearOpMode {
                 blockerPos = BLOCKER_CLOSE;
 
                 intakePower = 1;
+
+                intakeRunning = true;
             }
 
             if (gamepad2.left_bumper){
@@ -153,25 +170,51 @@ public class Teleop extends LinearOpMode {
                 blockerPos = BLOCKER_CLOSE;
 
                 intakePower = 0;
+
+                intakeRunning = false;
             }
 
             if (gamepad2.right_trigger > TRIGGER_DEADZONE){
                 blockerPos = BLOCKER_OPEN;
                 intakePower = 1;
+                intakeRunning = false;
             }
 
             if (gamepad2.left_trigger > TRIGGER_DEADZONE){
                 blockerPos = BLOCKER_CLOSE;
+                intakePower = -1;
+                intakeRunning = false;
+            }
+
+            if (!intakeRunning && gamepad2.right_trigger < TRIGGER_DEADZONE && gamepad2.left_trigger < TRIGGER_DEADZONE){
+                blockerPos = BLOCKER_CLOSE;
                 intakePower = 0;
             }
+
+            if (gamepad1.right_bumper){
+                rampPos = RAMP_DOWN;
+            }
+
+            if (gamepad1.left_bumper){
+                rampPos = RAMP_UP;
+            }
+
+            if (gamepad1.left_trigger > TRIGGER_DEADZONE){
+                speed = SLOW_SPEED;
+            }
+
+            if (gamepad1.left_trigger > TRIGGER_DEADZONE){
+                speed = FAST_SPEED;
+            }
+
 
             //MOTOR SET
 
             //drive
-            FL.setPower(frontLeftPower * SPEED);
-            BL.setPower(backLeftPower * SPEED);
-            FR.setPower(frontRightPower * SPEED);
-            BR.setPower(backRightPower * SPEED);
+            FL.setPower(frontLeftPower * speed);
+            BL.setPower(backLeftPower * speed);
+            FR.setPower(frontRightPower * speed);
+            BR.setPower(backRightPower * speed);
 
             //pid
             LShooter.setPower(power);
@@ -187,6 +230,9 @@ public class Teleop extends LinearOpMode {
 
             LExtender.setPosition(extenderPos);
             RExtender.setPosition(extenderPos);
+
+            RRamp.setPosition(rampPos);
+            LRamp.setPosition(rampPos);
 
 
             telemetry.update();
