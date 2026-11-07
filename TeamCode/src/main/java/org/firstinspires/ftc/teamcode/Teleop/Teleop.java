@@ -1,4 +1,9 @@
 package org.firstinspires.ftc.teamcode.Teleop;
+import com.pedropathing.follower.Follower;
+import com.pedropathing.follower.ManualDrive;
+import com.pedropathing.math.Pose;
+import com.qualcomm.robotcore.eventloop.opmode.OpMode;
+import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 
 import static java.lang.Math.abs;
 
@@ -9,6 +14,8 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 import com.qualcomm.robotcore.util.ElapsedTime;
+
+import org.firstinspires.ftc.teamcode.Auto.Constants;
 
 @TeleOp
 public class Teleop extends LinearOpMode {
@@ -40,7 +47,7 @@ public class Teleop extends LinearOpMode {
 
     static double integralSum = 0;
     public static double Kd = 0;
-    public static double Kf = 0.000425;
+    public static double Kf = 0.0001;
     public static double Ki = 0;
     public static double Kp = 0.004;
     public static double reference = 0;
@@ -48,13 +55,13 @@ public class Teleop extends LinearOpMode {
     static double lastError = 0;
 
     private final double BLOCKER_CLOSE = .3;
-    private final double BLOCKER_OPEN = .2;
+    private final double BLOCKER_OPEN = .15;
     private double blockerPos = BLOCKER_CLOSE;
     private final double EXTENDER_UP = .5;
     private final double EXTENDER_DOWN = .65;
     private double extenderPos = EXTENDER_UP;
-    private final double RAMP_DOWN = .3;
-    private final double RAMP_UP = .3;
+    private final double RAMP_DOWN = .0;
+    private final double RAMP_UP = .7;
     private double rampPos = RAMP_UP;
 
     private double intakePower = 0;
@@ -62,6 +69,8 @@ public class Teleop extends LinearOpMode {
     private final double TRIGGER_DEADZONE = .3;
 
     private boolean intakeRunning = false;
+
+    private Follower follower;
 
 
 
@@ -115,7 +124,7 @@ public class Teleop extends LinearOpMode {
 
         LExtender.setDirection(Servo.Direction.REVERSE);
 
-        LRamp.setDirection(Servo.Direction.REVERSE);
+        follower = Constants.create(hardwareMap);
 
         waitForStart();
 
@@ -123,9 +132,9 @@ public class Teleop extends LinearOpMode {
             //ACTIVE VARIABLES
 
             //gamepad
-            double y = gamepad1.left_stick_y;
-            double x = gamepad1.left_stick_x * -1.1;
-            double rx = -gamepad1.right_stick_x;
+            double y = -gamepad1.left_stick_y;
+            double x = -gamepad1.left_stick_x * -1.1;
+            double rx = gamepad1.right_stick_x;
 
             double denominator = Math.max(abs(y) + abs(x) + abs(rx), 1);
             double frontLeftPower = (y + x + rx) / denominator;
@@ -137,7 +146,7 @@ public class Teleop extends LinearOpMode {
             double velocity = LShooter.getVelocity();
             double power = PIDControl(reference, velocity);
 
-            telemetry.addData("Speed", reference);
+            telemetry.addData("Speed", velocity);
 
             //INPUT
             if (gamepad2.dpad_right){
@@ -153,7 +162,7 @@ public class Teleop extends LinearOpMode {
             }
 
             if (gamepad2.dpad_up){
-                reference = 1500;
+                reference = 950;
             }
 
             if (gamepad2.right_bumper){
@@ -191,20 +200,32 @@ public class Teleop extends LinearOpMode {
                 intakePower = 0;
             }
 
-            if (gamepad1.right_bumper){
+            if (gamepad1.right_trigger > TRIGGER_DEADZONE){
                 rampPos = RAMP_DOWN;
             }
 
-            if (gamepad1.left_bumper){
+            if (gamepad1.left_trigger > TRIGGER_DEADZONE){
                 rampPos = RAMP_UP;
             }
 
-            if (gamepad1.left_trigger > TRIGGER_DEADZONE){
+            if (gamepad1.left_bumper){
                 speed = SLOW_SPEED;
             }
 
-            if (gamepad1.left_trigger > TRIGGER_DEADZONE){
+            if (gamepad1.right_bumper){
                 speed = FAST_SPEED;
+            }
+
+
+            Pose robotPose = follower.pose();
+
+            telemetry.addData("Robot X", robotPose.x());
+            telemetry.addData("Robot Y", robotPose.y());
+            telemetry.addData("Robot Heading", Math.toDegrees(robotPose.heading()));
+
+            if (gamepad1.start && gamepad1.x){
+                Pose cornerPose = new Pose(10.5, 10.5, Math.toRadians(90));
+                follower.setPose(cornerPose);
             }
 
 
@@ -243,6 +264,7 @@ public class Teleop extends LinearOpMode {
     public static double PIDControl(double reference, double state){
         double error = reference - state;
         double dt = timer.seconds();
+        timer.reset();
         if (dt <= 0 || dt > 0.5) dt = 0.020;
 
         double MAX_INTEGRAL = 0.25 / Ki;
