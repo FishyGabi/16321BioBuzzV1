@@ -1,8 +1,5 @@
 package org.firstinspires.ftc.teamcode.Teleop;
 
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.gamepad1;
-import static org.firstinspires.ftc.robotcore.external.BlocksOpModeCompanion.hardwareMap;
-
 import com.pedropathing.follower.Follower;
 import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.math.Pose;
@@ -22,10 +19,6 @@ public class PedroTeleop extends OpMode {
     //DEFINE
 
     //motors
-    private DcMotor FR;
-    private DcMotor FL;
-    private DcMotor BR;
-    private DcMotor BL;
     private DcMotor FIntake;
     private DcMotor BIntake;
     private DcMotorEx LShooter;
@@ -47,7 +40,7 @@ public class PedroTeleop extends OpMode {
 
     static double integralSum = 0;
     public static double Kd = 0;
-    public static double Kf = 0.0001;
+    public static double Kf = 0.000425;
     public static double Ki = 0;
     public static double Kp = 0.004;
     public static double reference = 0;
@@ -70,6 +63,26 @@ public class PedroTeleop extends OpMode {
 
     private boolean intakeRunning = false;
 
+    private double rx;
+    private double ry;
+    private double rh;
+
+    private final double RED_BOT_GX = 59;
+    private final double RED_BOT_GY = 52;
+
+    private final double RED_TOP_GX = 59;
+    private final double RED_TOP_GY = 92;
+
+    private final double BLUE_BOT_GX = 85;
+    private final double BLUE_BOT_GY = 52;
+
+    private final double BLUE_TOP_GX = 85;
+    private final double BLUE_TOP_GY = 92;
+    private static double aimKp = 1.5;
+
+    private double gx;
+    private double gy;
+
     private Follower follower;
     @Override
     public void init() {
@@ -79,10 +92,6 @@ public class PedroTeleop extends OpMode {
         //HARDWARE MAP
 
         //motors
-        FR = hardwareMap.get(DcMotor.class, "fr");
-        FL = hardwareMap.get(DcMotor.class, "fl");
-        BR = hardwareMap.get(DcMotor.class, "br");
-        BL = hardwareMap.get(DcMotor.class, "bl");
 
         FIntake = hardwareMap.get(DcMotor.class, "FIntake");
         BIntake = hardwareMap.get(DcMotor.class, "BIntake");
@@ -102,15 +111,6 @@ public class PedroTeleop extends OpMode {
         //ACTUATOR DIRECTIONS
 
         //motors
-        FL.setDirection(DcMotorSimple.Direction.REVERSE);
-        BL.setDirection(DcMotorSimple.Direction.FORWARD);
-        FR.setDirection(DcMotorSimple.Direction.FORWARD);
-        BR.setDirection(DcMotorSimple.Direction.REVERSE);
-
-        BL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        BR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        FL.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        FR.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         BIntake.setDirection(DcMotorSimple.Direction.REVERSE);
 
@@ -124,17 +124,20 @@ public class PedroTeleop extends OpMode {
 
     @Override
     public void start(){
-        follower.setPose(OpModeStorage.autonomousEndPose);
+        if (OpModeStorage.red) {
+            follower.setPose(OpModeStorage.redAutonomousEndPose);
+        } else {
+            follower.setPose(OpModeStorage.blueAutonomousEndPose);
+        }
         follower.update();
     }
 
     @Override
     public void loop() {
         //Pedro Stuff
-        double forward = -gamepad1.left_stick_y;
-        double lateral = gamepad1.left_stick_x;
-        double turn = gamepad1.right_stick_x;
-        ManualDrive.driveOrHold(follower, forward, lateral, turn);
+        double forward = -gamepad1.left_stick_y * speed;
+        double lateral = -gamepad1.left_stick_x * speed;
+        double turn = -gamepad1.right_stick_x * speed;
 
 
         //relocalize
@@ -149,23 +152,51 @@ public class PedroTeleop extends OpMode {
 
         Pose robotPose = follower.pose();
 
-        telemetry.addData("Robot X", robotPose.x());
-        telemetry.addData("Robot Y", robotPose.y());
-        telemetry.addData("Robot Heading", Math.toDegrees(robotPose.heading()));
+        rx = robotPose.x();
+        ry = robotPose.y();
+        rh = robotPose.heading();
+
+        telemetry.addData("Robot X", rx);
+        telemetry.addData("Robot Y", ry);
+        telemetry.addData("Robot Heading", rh);
 
         double velocity = LShooter.getVelocity();
         double power = PIDControl(reference, velocity);
 
         telemetry.addData("Speed", velocity);
 
-        //INPUT
-        if (gamepad2.dpad_right){
-            reference += 1;
+        //Auto Aim
+
+        if (OpModeStorage.red){
+            if (ry > 72){
+                gx = RED_TOP_GX;
+                gy = RED_TOP_GY;
+            }else {
+                gx = RED_BOT_GX;
+                gy = RED_BOT_GY;
+            }
+        }else {
+            if (ry > 72){
+                gx = BLUE_TOP_GX;
+                gy = BLUE_TOP_GY;
+            }else {
+                gx = BLUE_BOT_GX;
+                gy = BLUE_BOT_GY;
+            }
         }
 
-        if (gamepad2.dpad_left){
-            reference -= 1;
+        if (gamepad1.a && !gamepad1.start){
+            double angle = Math.atan2(gy-ry, gx-rx);
+            double error = angleWrap(angle - rh);
+
+            turn = Math.abs(error) < Math.toRadians(2)
+                    ? 0
+                    :error*aimKp;
         }
+
+        ManualDrive.driveOrHold(follower, forward, lateral, turn);
+
+        //INPUT
 
         if (gamepad2.dpad_down){
             reference = 0;
@@ -225,6 +256,28 @@ public class PedroTeleop extends OpMode {
         if (gamepad1.right_bumper){
             speed = FAST_SPEED;
         }
+
+        //MOTOR SET
+
+        //drive
+
+        //pid
+        LShooter.setPower(power);
+        RShooter.setPower(power);
+
+        //intake
+        FIntake.setPower(-intakePower);
+        BIntake.setPower(-intakePower);
+
+        //servos
+        RBlocker.setPosition(blockerPos);
+        LBlocker.setPosition(blockerPos);
+
+        LExtender.setPosition(extenderPos);
+        RExtender.setPosition(extenderPos);
+
+        RRamp.setPosition(rampPos);
+        LRamp.setPosition(rampPos);
     }
 
     public static double PIDControl(double reference, double state){
@@ -251,6 +304,12 @@ public class PedroTeleop extends OpMode {
         output = Math.max(-1, Math.min(output, 1));
 
         return output;
+    }
+
+    private static double angleWrap(double angle){
+        while (angle > Math.PI)  angle -= 2 * Math.PI;
+        while (angle < -Math.PI)  angle += 2 * Math.PI;
+        return angle;
     }
 
 
